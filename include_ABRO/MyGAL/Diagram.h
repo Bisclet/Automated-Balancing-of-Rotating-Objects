@@ -325,11 +325,17 @@ public:
      *
      * \return Vector of centroids of the cells
      */
-    std::vector<Vector2<T>> computeLloydRelaxation() const
+    std::vector<Vector2<T>> computeLloydRelaxation(int n) const
     {
         auto sites = std::vector<Vector2<T>>();
+        int c = 0;
         for (const auto& face : mFaces)
         {
+            if(c < n){
+                sites.push_back(face.site->point);
+                c++;
+                continue;
+            }
             auto area = static_cast<T>(0.0);
             auto centroid = Vector2<T>();
             auto halfEdge = face.outerComponent;
@@ -408,6 +414,7 @@ private:
         }
     }
 
+    
     Site* getSite(std::size_t i)
     {
         return &mSites[i];
