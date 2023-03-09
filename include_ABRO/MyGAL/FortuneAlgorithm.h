@@ -55,6 +55,7 @@ public:
 
     }
 
+
     /**
      * \brief Execute Fortune's algorithm to construct the diagram
      *
@@ -115,12 +116,14 @@ public:
                 arc = arc->next;
             }
         }
+        
         // 3. Add corners if necessary
         for (auto& kv : vertices)
             success = addCorners(box, linkedVertices, kv.second) && success;
         // 4. Join the half-edges
         for (auto& kv : vertices)
             joinHalfEdges(kv.first, kv.second);
+        
         // Return the status
         return success;
     }
@@ -352,27 +355,34 @@ private:
         VerticeOnFrontierContainer& vertices)
     {
         auto success = true;
+
         // Bound the edge
         auto direction = (leftArc->site->point - rightArc->site->point).getOrthogonal();
         auto origin = (leftArc->site->point + rightArc->site->point) * static_cast<T>(0.5);
+
         // Line-box intersection
         auto intersection = box.getFirstIntersection(origin, direction);
+
         // Create a new vertex and ends the half edges
         auto vertex = mDiagram.createVertex(intersection.point);
         setDestination(leftArc, rightArc, vertex);
+
         // Initialize pointers
         if (vertices.find(leftArc->site->index) == vertices.end()) 
             vertices[leftArc->site->index].fill(nullptr); 
         if (vertices.find(rightArc->site->index) == vertices.end()) 
             vertices[rightArc->site->index].fill(nullptr); 
+
         // Check that the vertices are not already assigned
         success = vertices[leftArc->site->index][2 * static_cast<int>(intersection.side) + 1] == nullptr && success;
         success = vertices[rightArc->site->index][2 * static_cast<int>(intersection.side)] == nullptr && success;
+
         // Store the vertices on the boundaries
         linkedVertices.emplace_back(LinkedVertex{nullptr, vertex, leftArc->rightHalfEdge});
         vertices[leftArc->site->index][2 * static_cast<int>(intersection.side) + 1] = &linkedVertices.back();
         linkedVertices.emplace_back(LinkedVertex{rightArc->leftHalfEdge, vertex, nullptr});
         vertices[rightArc->site->index][2 * static_cast<int>(intersection.side)] = &linkedVertices.back();
+        
         // Return the status
         return success;
     }

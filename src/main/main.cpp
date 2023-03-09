@@ -39,16 +39,40 @@ constexpr Float Offset = 1.0f;
 template<typename T>
 std::vector<Vector2<T>> generatePoints(int nbPoints)
 {
+    std::vector<Vector2<T>> puntos;
+    const double PI = std::acos(-1);
+    int n = nbPoints;
+
+    for (int i = 0; i < n; i++) {
+        double angle = 2 * PI * i / n;
+        double x = 0.5f + 0.5f * std::cos(angle);
+        double y = 0.5f + 0.5f * std::sin(angle);
+        Vector2<T> v = {x,y};
+        puntos.push_back(v);
+    }
+
+    int extra = 500;
+
     auto seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::cout << "seed: " << seed << '\n';
     auto generator = std::default_random_engine(seed);
     auto distribution = std::uniform_real_distribution<T>(0.0, 1.0);
 
-    auto points = std::vector<Vector2<T>>(nbPoints);
-    for (auto i = 0; i < nbPoints; ++i)
-        points[i] = Vector2<T>(distribution(generator), distribution(generator));
+    auto points = std::vector<Vector2<T>>(extra);
+    for (auto i = 0; i < extra; ++i){
+        double x;
+        double y;
+        bool cond = true;
+        while(cond){
+            x = distribution(generator);
+            y = distribution(generator);
+            if (std::sqrt((x - 0.5f) * (x - 0.5f) + (y - 0.5f) * (y - 0.5f)) < 0.49f) {cond = false;}
+        }
+        Vector2<T> v = {x,y};
+        puntos.push_back(v);
+    }
 
-    return points;
+    return puntos;
 }
 
 // Rendering
@@ -133,22 +157,30 @@ Diagram<T> generateDiagram(const std::vector<Vector2<T>>& points)
 {
     // Construct diagram
     auto algorithm = FortuneAlgorithm<T>(points);
+    auto start = std::chrono::steady_clock::now();
     algorithm.construct();
+    auto duration = std::chrono::steady_clock::now() - start;
+    std::cout << "construction: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "ms" << '\n';
 
     // Bound the diagram
+    start = std::chrono::steady_clock::now();
     algorithm.bound(Box<T>{-0.05, -0.05, 1.05, 1.05}); // Take the bounding box slightly bigger than the intersection box
+    duration = std::chrono::steady_clock::now() - start;
+    std::cout << "bounding: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "ms" << '\n';
     auto diagram = algorithm.getDiagram();
 
     // Intersect the diagram with a box
-    
+    start = std::chrono::steady_clock::now();
     diagram.intersect(Box<T>{0.0, 0.0, 1.0, 1.0});
+    duration = std::chrono::steady_clock::now() - start;
+    std::cout << "intersection: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "ms" << '\n';
     
     return diagram;
 }
 
 int main()
 {
-    int nbPoints = 5000;
+    auto nbPoints = 100;
     auto diagram = generateDiagram(generatePoints<Float>(nbPoints));
     auto triangulation = diagram.computeTriangulation();
 
@@ -159,21 +191,32 @@ int main()
     window.setView(sf::View(sf::FloatRect(-0.1f, -0.1f, 1.2f, 1.2f)));
     window.setFramerateLimit(60);
     auto showTriangulation = false;
-    auto makeIteration = true;
-    auto counter = 0;
 
     while (window.isOpen())
     {
         auto event = sf::Event();
-        auto start = std::chrono::steady_clock::now();
-        while (makeIteration)
+        while (window.pollEvent(event))
         {
-            diagram = generateDiagram(diagram.computeLloydRelaxation());
-            if(counter == 50){makeIteration = false;}
-            counter++;
+            if (event.type == sf::Event::Closed)
+                window.close();
+            else if (event.type == sf::Event::KeyReleased)
+            {
+                if (event.key.code == sf::Keyboard::Key::N)
+                {
+                    diagram = generateDiagram(generatePoints<Float>(nbPoints));
+                    triangulation = diagram.computeTriangulation();
+                }
+                else if (event.key.code == sf::Keyboard::Key::R)
+                {
+                    for(int i = 0;i<5;i++){
+                    diagram = generateDiagram(diagram.computeLloydRelaxation(nbPoints));
+                    triangulation = diagram.computeTriangulation();
+                    }
+                }
+                else if (event.key.code == sf::Keyboard::Key::T)
+                    showTriangulation = !showTriangulation;
+            }
         }
-        auto duration = std::chrono::steady_clock::now() - start;
-        std::cout<<"Duracion de generar matriz con " << nbPoints << " Puntos: " <<  std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << " ms";
 
         window.clear(sf::Color::Black);
 
