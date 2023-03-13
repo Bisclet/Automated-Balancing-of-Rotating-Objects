@@ -24,8 +24,11 @@
 #include <SFML/Graphics.hpp>
 // MyGAL
 #include <MyGAL/FortuneAlgorithm.h>
+//Mesh
+#include <Balancing/Plane2D.h>
 
 using namespace mygal;
+using namespace plane;
 
 using Float = double;
 
@@ -36,42 +39,43 @@ constexpr Float Offset = 1.0f;
 
 // Points generation
 
-template<typename T>
-std::vector<Vector2<T>> generatePoints(int nbPoints)
+std::vector<Vector2<Float>> generatePoints(int nbPoints)
 {
-    std::vector<Vector2<T>> puntos;
-    const double PI = std::acos(-1);
+
+    auto generator = std::default_random_engine(11458);
+    auto distribution = std::uniform_real_distribution<Float>(0.0, 0.1);
+
+    std::vector<Vector2<Float>> puntos;
+    const Float PI = std::acos(-1);
     int n = nbPoints;
 
+    puntos.reserve(nbPoints);
+
     for (int i = 0; i < n; i++) {
-        double angle = 2 * PI * i / n;
-        double x = 0.5f + 0.5f * std::cos(angle);
-        double y = 0.5f + 0.5f * std::sin(angle);
-        Vector2<T> v = {x,y};
+        Float angle = 2 * PI * i / n;
+        Float x = 0.5f + 0.3f * std::cos(angle);
+        Float y = 0.5f +  0.3f * std::sin(angle);
+        Vector2<Float> v = {x,y};
         puntos.push_back(v);
     }
 
-    int extra = 500;
-
-    auto seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::cout << "seed: " << seed << '\n';
-    auto generator = std::default_random_engine(seed);
-    auto distribution = std::uniform_real_distribution<T>(0.0, 1.0);
-
+    
+    
+    /*
     auto points = std::vector<Vector2<T>>(extra);
     for (auto i = 0; i < extra; ++i){
-        double x;
-        double y;
+        Float x;
+        Float y;
         bool cond = true;
         while(cond){
             x = distribution(generator);
             y = distribution(generator);
-            if (std::sqrt((x - 0.5f) * (x - 0.5f) + (y - 0.5f) * (y - 0.5f)) < 0.49f) {cond = false;}
+            if (std::sqrt((x - 0.5f) * (x - 0.5f) + (y - 0.5f) * (y - 0.5f)) < 0.3f) {cond = false;}
         }
         Vector2<T> v = {x,y};
         puntos.push_back(v);
     }
-
+    */
     return puntos;
 }
 
@@ -171,7 +175,7 @@ Diagram<T> generateDiagram(const std::vector<Vector2<T>>& points)
 
     // Intersect the diagram with a box
     start = std::chrono::steady_clock::now();
-    diagram.intersect(Box<T>{0.0, 0.0, 1.0, 1.0});
+    diagram.intersect(Box<T>{0.44, 0.0, 1.0, 1.0});
     duration = std::chrono::steady_clock::now() - start;
     std::cout << "intersection: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "ms" << '\n';
     
@@ -180,9 +184,27 @@ Diagram<T> generateDiagram(const std::vector<Vector2<T>>& points)
 
 int main()
 {
-    auto nbPoints = 100;
-    auto diagram = generateDiagram(generatePoints<Float>(nbPoints));
-    auto triangulation = diagram.computeTriangulation();
+
+    int cir = 5;
+    std::vector<Vector2<int>> edges;
+    std::vector<Vector2<Float>> vertices = generatePoints(cir);
+
+    edges.reserve(cir);
+
+    for(int i = 0;i < cir;i++){
+        edges.push_back(Vector2<int>{i,(i+1)%cir});
+    }
+
+    auto start = std::chrono::steady_clock::now();
+    
+    Plane2D plane(vertices,edges);
+    plane.scatterPoints(16,500);
+
+    auto duration = std::chrono::steady_clock::now() - start;
+    std::cout << "Generacion plano: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "ms" << '\n';
+
+    auto diagram = generateDiagram(plane.getPoints());
+    
 
     // Display the diagram
     auto settings = sf::ContextSettings();
@@ -199,35 +221,17 @@ int main()
         {
             if (event.type == sf::Event::Closed)
                 window.close();
-            else if (event.type == sf::Event::KeyReleased)
-            {
-                if (event.key.code == sf::Keyboard::Key::N)
-                {
-                    diagram = generateDiagram(generatePoints<Float>(nbPoints));
-                    triangulation = diagram.computeTriangulation();
-                }
-                else if (event.key.code == sf::Keyboard::Key::R)
-                {
-                    for(int i = 0;i<5;i++){
-                    diagram = generateDiagram(diagram.computeLloydRelaxation(nbPoints));
-                    triangulation = diagram.computeTriangulation();
-                    }
-                }
-                else if (event.key.code == sf::Keyboard::Key::T)
-                    showTriangulation = !showTriangulation;
-            }
+            
         }
 
         window.clear(sf::Color::Black);
 
-        if (!showTriangulation)
-            drawDiagram(window, diagram);
-        drawPoints(window, diagram);
-        if (showTriangulation)
-            drawTriangulation(window, diagram, triangulation);
+        //diagram = generateDiagram(diagram.computeLloydRelaxation(nbPoints));
 
+        //drawDiagram(window,diagram);
+        drawPoints(window,diagram);
         window.display();
     }
-
+    
     return 0;
 }

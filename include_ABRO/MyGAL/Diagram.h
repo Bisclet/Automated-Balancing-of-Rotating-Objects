@@ -24,6 +24,7 @@
 // My includes
 #include "Box.h"
 #include "Triangulation.h"
+#include <thread>
 
 /**
  * \brief Namespace of MyGAL
@@ -180,6 +181,15 @@ public:
         return mVertices;
     }
 
+    std::vector<Vector2<T>> getVerticesVec() const
+    {
+        std::vector<Vector2<double>> ret;
+        for(const auto& ver : mSites){
+            ret.push_back(static_cast<Vector2<T>>(ver.point));
+        }
+        return ret;
+    }
+
     /**
      * \brief Get half-edges
      *
@@ -325,17 +335,14 @@ public:
      *
      * \return Vector of centroids of the cells
      */
-    std::vector<Vector2<T>> computeLloydRelaxation(int n) const
+    std::vector<Vector2<T>> computeLloydRelaxation(int rangeL, int rangeH) const
     {
         auto sites = std::vector<Vector2<T>>();
-        int c = 0;
-        for (const auto& face : mFaces)
+        sites.reserve(rangeH - rangeL);
+        
+        for(int i = rangeL;i<rangeH;i++)
         {
-            if(c < n){
-                sites.push_back(face.site->point);
-                c++;
-                continue;
-            }
+            auto face = mFaces[i];
             auto area = static_cast<T>(0.0);
             auto centroid = Vector2<T>();
             auto halfEdge = face.outerComponent;
@@ -353,6 +360,51 @@ public:
         }
         return sites;
     }
+
+    std::vector<Vector2<T>> computeLloydRelaxationParallelized(int n) const 
+    {
+        int numThreads = std::thread::hardware_concurrency();
+        const int rangeSize = (mFaces.size() - n) / numThreads;
+        int rest = (mFaces.size() - n) % numThreads;
+
+        std::vector<std::thread> threads;
+        threads.reserve(numThreads);
+
+        std::vector<std::vector<Vector2<T>>> subResults(numThreads);
+
+        // Launch a thread for each sub-range of the main range
+        for (int i = 0; i < numThreads; ++i) {
+            int subStart = n + i * rangeSize;
+            int subEnd = n + i * rangeSize + rangeSize;
+            if(rest > 0){
+                subEnd += 1;
+                rest--;
+            }
+            threads.emplace_back([&subResults, this, subStart, subEnd, i]() {
+                subResults[i] = computeLloydRelaxation(subStart, subEnd);
+            });
+        }
+
+        // Wait for all threads to finish
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        std::vector<Vector2<T>> result;
+
+        result.reserve(mFaces.size());
+
+        std::transform(mFaces.begin(), mFaces.begin() + n, std::back_inserter(result), [](const Face& f) { return (f.site)->point; });
+
+        // Merge the results from all sub-ranges
+        for (const auto& subResult : subResults) {
+            result.insert(result.end(), subResult.begin(), subResult.end());
+        }
+
+        return result;
+    }
+
+
 
     // Triangulation
 

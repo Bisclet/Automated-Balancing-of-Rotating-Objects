@@ -26,6 +26,7 @@
 #include "Event.h"
 #include "util.h"
 
+
 /**
  * \brief Namespace of MyGAL
  */
@@ -52,7 +53,7 @@ public:
      */
     explicit FortuneAlgorithm(std::vector<Vector2<T>> points) : mDiagram(std::move(points))
     {
-
+        
     }
 
 
